@@ -1,17 +1,53 @@
-import Logo from '../components/Logo'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import api from '../api/client'
 
 function Dashboard() {
-  const reviews = [
-    { id: 1, project: 'auth-service', score: 82, date: '2026-07-08', issues: 5 },
-    { id: 2, project: 'payment-gateway', score: 67, date: '2026-07-06', issues: 12 },
-    { id: 3, project: 'portfolio-site', score: 91, date: '2026-07-01', issues: 2 },
-  ]
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const avgScore = Math.round(reviews.reduce((a, r) => a + r.score, 0) / reviews.length)
-  const totalIssues = reviews.reduce((a, r) => a + r.issues, 0)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await api.get('/auth/profile')
+        setData(res.data)
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Failed to load dashboard')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
-  const scoreColor = (score: number) =>
-    score >= 80 ? '#34D399' : score >= 60 ? '#FBBF24' : '#F87171'
+  const scoreColor = (score: number | null) => {
+    if (score === null || score === undefined) return '#9CA3AF'
+    if (score >= 80) return '#34D399'
+    if (score >= 50) return '#FBBF24'
+    return '#F87171'
+  }
+
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <p className="text-[var(--color-text-muted)] text-sm">Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <p className="text-[#F87171] text-sm">{error || 'Something went wrong'}</p>
+      </div>
+    )
+  }
+
+  const { stats, recentReviews } = data
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -26,11 +62,7 @@ function Dashboard() {
       />
 
       <div className="relative z-10 p-10 max-w-6xl mx-auto">
-        <div className="flex items-center gap-3 mb-1">
-          <Logo size={32} />
-          <span className="text-[var(--color-text-muted)] text-sm">AI Code Review</span>
-        </div>
-        <h1 className="text-3xl font-medium text-[var(--color-text)] mt-3 mb-1">
+        <h1 className="text-3xl font-medium text-[var(--color-text)] mb-1">
           Dashboard
         </h1>
         <p className="text-[var(--color-text-muted)] mb-10 text-sm">
@@ -44,7 +76,7 @@ function Dashboard() {
             style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
           >
             <p className="text-[var(--color-text-muted)] text-sm">Total reviews</p>
-            <p className="text-4xl font-medium text-[var(--color-text)] mt-2">{reviews.length}</p>
+            <p className="text-4xl font-medium text-[var(--color-text)] mt-2">{stats.totalReviews}</p>
           </div>
 
           <div
@@ -53,7 +85,7 @@ function Dashboard() {
           >
             <div>
               <p className="text-[var(--color-text-muted)] text-sm">Avg score</p>
-              <p className="text-4xl font-medium gradient-text mt-2">{avgScore}</p>
+              <p className="text-4xl font-medium gradient-text mt-2">{stats.averageScore ?? '—'}</p>
             </div>
             <div className="relative w-16 h-16 shrink-0">
               <div className="gradient-ring w-16 h-16 rounded-full" />
@@ -66,7 +98,7 @@ function Dashboard() {
             style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
           >
             <p className="text-[var(--color-text-muted)] text-sm">Issues found</p>
-            <p className="text-4xl font-medium text-[#F87171] mt-2">{totalIssues}</p>
+            <p className="text-4xl font-medium text-[#F87171] mt-2">{stats.totalFindings}</p>
           </div>
         </div>
 
@@ -75,36 +107,53 @@ function Dashboard() {
           className="rounded-2xl border border-white/10 overflow-hidden"
           style={{ background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)' }}
         >
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Project</th>
-                <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Score</th>
-                <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Issues</th>
-                <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reviews.map((r) => (
-                <tr key={r.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition">
-                  <td className="px-6 py-4 text-[var(--color-text)] font-medium">{r.project}</td>
-                  <td className="px-6 py-4">
-                    <span
-                      className="px-3 py-1 rounded-full text-xs font-semibold"
-                      style={{
-                        color: scoreColor(r.score),
-                        background: `${scoreColor(r.score)}1A`,
-                      }}
-                    >
-                      {r.score}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-[var(--color-text-muted)]">{r.issues}</td>
-                  <td className="px-6 py-4 text-[var(--color-text-muted)]">{r.date}</td>
+          {recentReviews.length > 0 ? (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Project</th>
+                  <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Score</th>
+                  <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Issues</th>
+                  <th className="px-6 py-4 text-[var(--color-text-muted)] text-xs font-medium uppercase tracking-wide">Date</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recentReviews.map((r: any) => (
+                  <tr key={r.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition">
+                    <td className="px-6 py-4 text-[var(--color-text)] font-medium">{r.projectName}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className="px-3 py-1 rounded-full text-xs font-semibold"
+                        style={{
+                          color: scoreColor(r.overallScore),
+                          background: `${scoreColor(r.overallScore)}1A`,
+                        }}
+                      >
+                        {r.overallScore ?? '—'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-[var(--color-text-muted)]">{r.issuesCount}</td>
+                    <td className="px-6 py-4 text-[var(--color-text-muted)]">{formatDate(r.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-10 text-center">
+              <p className="text-[var(--color-text-muted)] text-sm mb-4">
+                No reviews yet. Submit your first code review to see it here.
+              </p>
+              <Link
+                to="/new-review"
+                className="inline-block px-5 py-2.5 rounded-full text-white text-sm font-medium"
+                style={{
+                  background: 'linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
+                }}
+              >
+                New review
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,14 +1,26 @@
-import { Outlet, Link, useLocation } from 'react-router-dom'
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import Logo from '../components/Logo'
 
 function DashboardLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const token = localStorage.getItem('token')
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard' },
     { name: 'New Review', path: '/new-review' },
+    { name: 'History', path: '/history' },
     { name: 'Profile', path: '/profile' },
   ]
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    navigate('/login')
+  }
+
+  if (!token) {
+    return <Navigate to="/login" replace />
+  }
 
   return (
     <div className="min-h-screen bg-black flex">
@@ -52,7 +64,10 @@ function DashboardLayout() {
         </nav>
 
         <div className="px-3 py-4 border-t border-white/10">
-          <button className="w-full text-left px-4 py-2.5 rounded-full text-sm font-medium text-[var(--color-text-muted)] hover:bg-white/5 transition">
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-4 py-2.5 rounded-full text-sm font-medium text-[var(--color-text-muted)] hover:bg-white/5 transition"
+          >
             Logout
           </button>
         </div>

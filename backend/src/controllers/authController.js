@@ -65,10 +65,66 @@ const login = async (req, res) => {
   }
 };
 
-// @desc  Get logged-in user profile
+// @desc  Get logged-in user profile + real usage stats
 // @route GET /api/auth/profile
 const getProfile = async (req, res) => {
-  res.json(req.user);
+  try {
+    const userId = req.user.id;
+
+    const projects = await prisma.project.findMany({
+      where: { userId },
+      include: {
+        reviews: {
+          include: { findings: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const allReviews = projects.flatMap((p) => p.reviews);
+    const allFindings = allReviews.flatMap((r) => r.findings);
+
+    const scoredReviews = allReviews.filter((r) => r.overallScore !== null && r.overallScore !== undefined);
+    const averageScore =
+      scoredReviews.length > 0
+        ? Math.round(scoredReviews.reduce((sum, r) => sum + r.overallScore, 0) / scoredReviews.length)
+        : null;
+
+    const severityCounts = {
+      error: allFindings.filter((f) => f.severity === 'error').length,
+      warning: allFindings.filter((f) => f.severity === 'warning').length,
+      info: allFindings.filter((f) => f.severity === 'info').length,
+    };
+
+    const recentReviews = allReviews
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 10)
+      .map((r) => {
+        const parentProject = projects.find((p) => p.id === r.projectId);
+        return {
+          id: r.id,
+          projectName: parentProject?.projectName || 'Unknown project',
+          overallScore: r.overallScore,
+          reviewType: r.reviewType,
+          issuesCount: r.findings.length,
+          createdAt: r.createdAt,
+        };
+      });
+
+    res.json({
+      user: req.user,
+      stats: {
+        totalProjects: projects.length,
+        totalReviews: allReviews.length,
+        totalFindings: allFindings.length,
+        averageScore,
+        severityCounts,
+      },
+      recentReviews,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 module.exports = { signup, login, getProfile };
