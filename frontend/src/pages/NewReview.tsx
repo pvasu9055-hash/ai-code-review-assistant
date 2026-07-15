@@ -13,6 +13,15 @@ function NewReview() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState('')
 
+  // Quality gate settings
+  const [showGateSettings, setShowGateSettings] = useState(false)
+  const [minScoreThreshold, setMinScoreThreshold] = useState('70')
+  const [maxComplexityThreshold, setMaxComplexityThreshold] = useState('15')
+
+  // Live streaming state
+  const [streamedText, setStreamedText] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+
   // Chat widget state
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -24,6 +33,44 @@ function NewReview() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages, chatOpen])
 
+  const streamAIPreview = async (codeToStream: string, lang: string) => {
+    setStreamedText('')
+    setIsStreaming(true)
+    try {
+      const token = localStorage.getItem('token')
+      const url = `${api.defaults.baseURL}/reviews/stream-review?code=${encodeURIComponent(codeToStream)}&language=${lang}`
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.body) return
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = JSON.parse(line.slice(6))
+          if (payload.type === 'chunk') {
+            setStreamedText((prev) => prev + payload.text)
+          }
+        }
+      }
+    } catch (err) {
+      // Silent fail - streaming is a visual enhancement, main submitCode still runs
+    } finally {
+      setIsStreaming(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -34,10 +81,14 @@ function NewReview() {
 
     try {
       if (mode === 'paste') {
+        streamAIPreview(code, language)
+
         const res = await api.post('/reviews/submit-code', {
           code,
           language,
           projectName,
+          minScoreThreshold,
+          maxComplexityThreshold,
         })
         setResult(res.data)
       } else {
@@ -49,6 +100,8 @@ function NewReview() {
         const formData = new FormData()
         formData.append('projectName', projectName)
         formData.append('file', file)
+        formData.append('minScoreThreshold', minScoreThreshold)
+        formData.append('maxComplexityThreshold', maxComplexityThreshold)
 
         const res = await api.post('/reviews/submit-file', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -120,6 +173,7 @@ function NewReview() {
   const complexityFindings = result?.findings?.filter((f: any) => f.source === 'complexity') || []
   const metrics = result?.complexityMetrics
   const documentation = result?.documentation || []
+  const qualityGate = result?.qualityGate
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -192,6 +246,15 @@ function NewReview() {
                 <option value="javascript">JavaScript</option>
                 <option value="typescript">TypeScript</option>
                 <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="c">C</option>
+                <option value="cpp">C++</option>
+                <option value="csharp">C#</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="php">PHP</option>
+                <option value="ruby">Ruby</option>
+                <option value="sql">SQL</option>
               </select>
               <textarea
                 placeholder="Paste your code here..."
@@ -209,6 +272,42 @@ function NewReview() {
               className="w-full px-5 py-3 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:bg-white/10 file:text-[var(--color-text)] file:cursor-pointer"
             />
           )}
+
+          {/* Quality gate settings */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowGateSettings(!showGateSettings)}
+              className="text-[var(--color-text-muted)] text-xs font-medium hover:text-[var(--color-text)] transition"
+            >
+              {showGateSettings ? '▾' : '▸'} Quality gate settings
+            </button>
+            {showGateSettings && (
+              <div className="mt-3 flex gap-3">
+                <div className="flex-1">
+                  <label className="text-[var(--color-text-muted)] text-xs block mb-1">Min score to pass</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={minScoreThreshold}
+                    onChange={(e) => setMinScoreThreshold(e.target.value)}
+                    className="w-full px-4 py-2 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[var(--color-text-muted)] text-xs block mb-1">Max complexity to pass</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxComplexityThreshold}
+                    onChange={(e) => setMaxComplexityThreshold(e.target.value)}
+                    className="w-full px-4 py-2 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           <button
             type="submit"
@@ -229,6 +328,25 @@ function NewReview() {
           </div>
         )}
 
+        {/* Live streaming AI panel - shows while analysis is in progress */}
+        {loading && streamedText && (
+          <div
+            className="mt-4 p-6 rounded-2xl border border-white/10"
+            style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full bg-[var(--color-accent-blue)] animate-pulse" />
+              <p className="text-[var(--color-text)] font-medium text-sm">
+                {isStreaming ? 'AI is reviewing your code live...' : 'Finalizing analysis...'}
+              </p>
+            </div>
+            <pre className="text-xs text-[var(--color-text-muted)] whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto">
+              {streamedText}
+              {isStreaming && <span className="animate-pulse">▊</span>}
+            </pre>
+          </div>
+        )}
+
         {result && (
           <div className="mt-4 space-y-4">
             {/* Score + summary card */}
@@ -245,13 +363,32 @@ function NewReview() {
               >
                 {result.review?.overallScore ?? '—'}
               </div>
-              <div className="min-w-0">
-                <p className="text-[var(--color-text)] font-medium mb-1">
-                  {result.project.projectName}
-                </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-[var(--color-text)] font-medium">
+                    {result.project.projectName}
+                  </p>
+                  {qualityGate && (
+                    <span
+                      className="text-xs font-medium uppercase px-2.5 py-1 rounded-full"
+                      style={
+                        qualityGate.passed
+                          ? { color: '#4ADE80', background: 'rgba(74,222,128,0.15)' }
+                          : { color: '#F87171', background: 'rgba(248,113,113,0.15)' }
+                      }
+                    >
+                      {qualityGate.passed ? '✓ Gate passed' : '✕ Gate failed'}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[var(--color-text-muted)] text-sm">
                   {result.review?.summary || 'Review complete.'}
                 </p>
+                {qualityGate && (
+                  <p className="text-[var(--color-text-muted)] text-xs mt-1">
+                    Requires score ≥ {qualityGate.minScoreThreshold} and complexity ≤ {qualityGate.maxComplexityThreshold}
+                  </p>
+                )}
               </div>
             </div>
 

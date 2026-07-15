@@ -13,6 +13,14 @@ function History() {
   const [sortBy, setSortBy] = useState('newest')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // AI semantic search state
+  const [mode, setMode] = useState<'filter' | 'ai'>('filter')
+  const [aiQuery, setAiQuery] = useState('')
+  const [aiResults, setAiResults] = useState<any[]>([])
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiSearched, setAiSearched] = useState(false)
+
   const fetchReviews = async () => {
     setLoading(true)
     setError('')
@@ -42,12 +50,29 @@ function History() {
     fetchReviews()
   }
 
+  const handleAiSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!aiQuery.trim()) return
+    setAiLoading(true)
+    setAiError('')
+    setAiSearched(true)
+    try {
+      const res = await api.get('/reviews/search', { params: { q: aiQuery } })
+      setAiResults(res.data)
+    } catch (err: any) {
+      setAiError(err.response?.data?.message || 'AI search failed')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   const handleDelete = async (reviewId: string) => {
     if (!window.confirm('Delete this review? This cannot be undone.')) return
     setDeletingId(reviewId)
     try {
       await api.delete(`/reviews/${reviewId}`)
       setReviews((prev) => prev.filter((r) => r.id !== reviewId))
+      setAiResults((prev) => prev.filter((r) => r.id !== reviewId))
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to delete review')
     } finally {
@@ -78,62 +103,172 @@ function History() {
           Search, filter, and manage your past reviews
         </p>
 
-        {/* Filters */}
-        <form
-          onSubmit={handleFilter}
-          className="p-5 rounded-2xl border border-white/10 mb-6 flex flex-wrap gap-3 items-center"
-          style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
-        >
-          <input
-            type="text"
-            placeholder="Search by project name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-[180px] px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
-          />
-          <input
-            type="number"
-            placeholder="Min score"
-            value={minScore}
-            onChange={(e) => setMinScore(e.target.value)}
-            className="w-28 px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
-          />
-          <input
-            type="number"
-            placeholder="Max score"
-            value={maxScore}
-            onChange={(e) => setMaxScore(e.target.value)}
-            className="w-28 px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
-          />
-          <select
-            value={reviewType}
-            onChange={(e) => setReviewType(e.target.value)}
-            className="px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
-          >
-            <option value="">All types</option>
-            <option value="paste">Pasted code</option>
-            <option value="file">Uploaded file</option>
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-          </select>
+        {/* Mode toggle */}
+        <div className="flex gap-2 mb-4">
           <button
-            type="submit"
-            className="px-5 py-2.5 rounded-full text-white text-sm font-medium"
-            style={{
-              background: 'linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
-            }}
+            onClick={() => setMode('filter')}
+            className="px-5 py-2 rounded-full text-sm font-medium transition"
+            style={
+              mode === 'filter'
+                ? {
+                    background:
+                      'linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
+                    color: 'white',
+                  }
+                : { background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)' }
+            }
           >
-            Apply
+            Filters
           </button>
-        </form>
+          <button
+            onClick={() => setMode('ai')}
+            className="px-5 py-2 rounded-full text-sm font-medium transition"
+            style={
+              mode === 'ai'
+                ? {
+                    background:
+                      'linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
+                    color: 'white',
+                  }
+                : { background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)' }
+            }
+          >
+            ✨ AI Search
+          </button>
+        </div>
 
-        {loading ? (
+        {mode === 'filter' ? (
+          <form
+            onSubmit={handleFilter}
+            className="p-5 rounded-2xl border border-white/10 mb-6 flex flex-wrap gap-3 items-center"
+            style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
+          >
+            <input
+              type="text"
+              placeholder="Search by project name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 min-w-[180px] px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+            />
+            <input
+              type="number"
+              placeholder="Min score"
+              value={minScore}
+              onChange={(e) => setMinScore(e.target.value)}
+              className="w-28 px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+            />
+            <input
+              type="number"
+              placeholder="Max score"
+              value={maxScore}
+              onChange={(e) => setMaxScore(e.target.value)}
+              className="w-28 px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+            />
+            <select
+              value={reviewType}
+              onChange={(e) => setReviewType(e.target.value)}
+              className="px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+            >
+              <option value="">All types</option>
+              <option value="paste">Pasted code</option>
+              <option value="file">Uploaded file</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-full text-white text-sm font-medium"
+              style={{
+                background: 'linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
+              }}
+            >
+              Apply
+            </button>
+          </form>
+        ) : (
+          <form
+            onSubmit={handleAiSearch}
+            className="p-5 rounded-2xl border border-white/10 mb-6 flex gap-3 items-center"
+            style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
+          >
+            <input
+              type="text"
+              placeholder='Ask in plain English — e.g. "reviews with SQL injection risks"'
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              className="flex-1 px-4 py-2.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition text-sm"
+            />
+            <button
+              type="submit"
+              disabled={aiLoading || !aiQuery.trim()}
+              className="px-5 py-2.5 rounded-full text-white text-sm font-medium disabled:opacity-50"
+              style={{
+                background: 'linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
+              }}
+            >
+              {aiLoading ? 'Searching...' : 'Search'}
+            </button>
+          </form>
+        )}
+
+        {mode === 'ai' ? (
+          aiLoading ? (
+            <p className="text-[var(--color-text-muted)] text-sm">Searching with AI...</p>
+          ) : aiError ? (
+            <p className="text-[#F87171] text-sm">{aiError}</p>
+          ) : !aiSearched ? (
+            <div
+              className="p-10 rounded-2xl border border-white/10 text-center"
+              style={{ background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)' }}
+            >
+              <p className="text-[var(--color-text-muted)] text-sm">
+                Type a question above to search your review history by meaning, not just keywords.
+              </p>
+            </div>
+          ) : aiResults.length === 0 ? (
+            <div
+              className="p-10 rounded-2xl border border-white/10 text-center"
+              style={{ background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)' }}
+            >
+              <p className="text-[var(--color-text-muted)] text-sm">No matching reviews found.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {aiResults.map((r) => (
+                <Link
+                  key={r.id}
+                  to={`/history/${r.id}`}
+                  className="block p-5 rounded-2xl border border-white/10 hover:border-white/20 transition"
+                  style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[var(--color-text)] font-medium">{r.projectName}</p>
+                    <span
+                      className="px-3 py-1 rounded-full text-xs font-semibold"
+                      style={{ color: scoreColor(r.overallScore), background: `${scoreColor(r.overallScore)}1A` }}
+                    >
+                      Score: {r.overallScore ?? '—'}
+                    </span>
+                  </div>
+                  <p className="text-[var(--color-text-muted)] text-sm mb-2">{r.summary}</p>
+                  <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
+                    <span>{r.issuesCount} issue{r.issuesCount !== 1 ? 's' : ''}</span>
+                    <span>·</span>
+                    <span>{formatDate(r.createdAt)}</span>
+                    <span>·</span>
+                    <span>Match: {(r.score * 100).toFixed(0)}%</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )
+        ) : loading ? (
           <p className="text-[var(--color-text-muted)] text-sm">Loading reviews...</p>
         ) : error ? (
           <p className="text-[#F87171] text-sm">{error}</p>

@@ -10,6 +10,7 @@ function DashboardLayout() {
     { name: 'Dashboard', path: '/dashboard' },
     { name: 'New Review', path: '/new-review' },
     { name: 'History', path: '/history' },
+    { name: 'Analytics', path: '/analytics' },
     { name: 'Profile', path: '/profile' },
   ]
 
@@ -36,7 +37,7 @@ function DashboardLayout() {
 
         <nav className="flex-1 px-3 py-6 space-y-1">
           {navItems.map((item) => {
-            const active = location.pathname === item.path
+            const active = location.pathname.startsWith(item.path)
             return (
               <Link
                 key={item.path}
