@@ -4,7 +4,10 @@ const walk = require('acorn-walk');
 /**
  * Computes cyclomatic complexity, function/class counts, and LOC
  * for a given piece of JS/TS code using acorn AST parsing.
+ * For non-JS/TS languages, returns basic LOC only with an info finding.
  */
+
+const JS_TS_LANGUAGES = ['javascript', 'typescript'];
 
 function countLinesOfCode(code) {
   const lines = code.split('\n');
@@ -55,7 +58,29 @@ function getFunctionName(node, index) {
   return `anonymous_${index}`;
 }
 
-async function runComplexityAnalysis(code, fileName = 'submitted.js') {
+async function runComplexityAnalysis(code, fileName = 'submitted.js', language = 'javascript') {
+  const loc = countLinesOfCode(code);
+
+  if (!JS_TS_LANGUAGES.includes(language)) {
+    return {
+      loc,
+      functionCount: 0,
+      classCount: 0,
+      fileComplexity: 0,
+      fileComplexityRating: 'unknown',
+      findings: [
+        {
+          severity: 'info',
+          issue: 'Complexity analysis not applicable',
+          explanation: `AST-based complexity analysis only supports JavaScript and TypeScript. Skipped for ${language}. Line count is still shown above.`,
+          suggestedFix: null,
+          fileName,
+          lineNumber: null,
+        },
+      ],
+    };
+  }
+
   const findings = [];
   let functionCount = 0;
   let classCount = 0;
@@ -72,7 +97,7 @@ async function runComplexityAnalysis(code, fileName = 'submitted.js') {
     });
   } catch (err) {
     return {
-      loc: countLinesOfCode(code),
+      loc,
       functionCount: 0,
       classCount: 0,
       fileComplexity: 0,
@@ -123,7 +148,6 @@ async function runComplexityAnalysis(code, fileName = 'submitted.js') {
     },
   });
 
-  const loc = countLinesOfCode(code);
   const fileComplexity = totalComplexity;
   const fileComplexityRating = getComplexityRating(fileComplexity);
 

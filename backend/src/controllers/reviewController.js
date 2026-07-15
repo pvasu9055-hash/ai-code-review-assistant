@@ -5,19 +5,27 @@ const { runAIReview } = require('../services/aiReviewService');
 const { runComplexityAnalysis } = require('../services/complexityAnalysisService');
 const { runDocGeneration } = require('../services/docGenerationService');
 const { runChatQuery } = require('../services/chatService');
+const { streamAIReview } = require('../services/aiReviewStreamService');
+const { generateEmbedding, cosineSimilarity } = require('../services/embeddingService');
 
 const submitCode = async (req, res) => {
   try {
-    const { code, language, projectName } = req.body;
+    const { code, language, projectName, minScoreThreshold, maxComplexityThreshold } = req.body;
 
-    if (!code || !projectName) {
+    if (!code || !code.trim() || !projectName || !projectName.trim()) {
       return res.status(400).json({ message: 'Code and project name are required' });
+    }
+
+    if (code.length > 50000) {
+      return res.status(400).json({ message: 'Code is too large. Maximum 50,000 characters for pasted code.' });
     }
 
     const project = await prisma.project.create({
       data: {
         userId: req.user.id,
         projectName,
+        ...(minScoreThreshold !== undefined && { minScoreThreshold: Number(minScoreThreshold) }),
+        ...(maxComplexityThreshold !== undefined && { maxComplexityThreshold: Number(maxComplexityThreshold) }),
       },
     });
 
@@ -38,12 +46,23 @@ const submitCode = async (req, res) => {
     const complexityFindings = complexityResult.findings || [];
     const allFindingsForDb = [...staticFindings, ...aiFindings, ...complexityFindings];
 
+    const passedQualityGate =
+      (aiResult.overallScore === null || aiResult.overallScore >= project.minScoreThreshold) &&
+      (complexityResult.fileComplexity === null || complexityResult.fileComplexity <= project.maxComplexityThreshold);
+
+    const embeddingText = [aiResult.summary, ...allFindingsForDb.map((f) => `${f.severity}: ${f.issue} - ${f.explanation}`)]
+      .filter(Boolean)
+      .join('\n');
+    const embeddingVector = await generateEmbedding(embeddingText);
+
     const review = await prisma.review.create({
       data: {
         projectId: project.id,
         reviewType: 'paste',
         overallScore: aiResult.overallScore,
+        passedQualityGate,
         summary: aiResult.summary,
+        embedding: embeddingVector ? JSON.stringify(embeddingVector) : null,
       },
     });
 
@@ -71,6 +90,11 @@ const submitCode = async (req, res) => {
         fileComplexity: complexityResult.fileComplexity,
         fileComplexityRating: complexityResult.fileComplexityRating,
       },
+      qualityGate: {
+        passed: passedQualityGate,
+        minScoreThreshold: project.minScoreThreshold,
+        maxComplexityThreshold: project.maxComplexityThreshold,
+      },
       documentation: docResult.documentation || [],
       codePreview: code.substring(0, 200),
     });
@@ -85,18 +109,24 @@ const submitFile = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const { projectName } = req.body;
+    const { projectName, minScoreThreshold, maxComplexityThreshold } = req.body;
 
-    if (!projectName) {
+    if (!projectName || !projectName.trim()) {
       return res.status(400).json({ message: 'Project name is required' });
     }
 
     const fileContent = fs.readFileSync(req.file.path, 'utf-8');
 
+    if (!fileContent.trim()) {
+      return res.status(400).json({ message: 'Uploaded file is empty' });
+    }
+
     const project = await prisma.project.create({
       data: {
         userId: req.user.id,
         projectName,
+        ...(minScoreThreshold !== undefined && { minScoreThreshold: Number(minScoreThreshold) }),
+        ...(maxComplexityThreshold !== undefined && { maxComplexityThreshold: Number(maxComplexityThreshold) }),
       },
     });
 
@@ -117,12 +147,23 @@ const submitFile = async (req, res) => {
     const complexityFindings = complexityResult.findings || [];
     const allFindingsForDb = [...staticFindings, ...aiFindings, ...complexityFindings];
 
+    const passedQualityGate =
+      (aiResult.overallScore === null || aiResult.overallScore >= project.minScoreThreshold) &&
+      (complexityResult.fileComplexity === null || complexityResult.fileComplexity <= project.maxComplexityThreshold);
+
+    const embeddingText = [aiResult.summary, ...allFindingsForDb.map((f) => `${f.severity}: ${f.issue} - ${f.explanation}`)]
+      .filter(Boolean)
+      .join('\n');
+    const embeddingVector = await generateEmbedding(embeddingText);
+
     const review = await prisma.review.create({
       data: {
         projectId: project.id,
         reviewType: 'file',
         overallScore: aiResult.overallScore,
+        passedQualityGate,
         summary: aiResult.summary,
+        embedding: embeddingVector ? JSON.stringify(embeddingVector) : null,
       },
     });
 
@@ -150,6 +191,11 @@ const submitFile = async (req, res) => {
         fileComplexity: complexityResult.fileComplexity,
         fileComplexityRating: complexityResult.fileComplexityRating,
       },
+      qualityGate: {
+        passed: passedQualityGate,
+        minScoreThreshold: project.minScoreThreshold,
+        maxComplexityThreshold: project.maxComplexityThreshold,
+      },
       documentation: docResult.documentation || [],
       fileName: req.file.originalname,
       fileSize: req.file.size,
@@ -165,7 +211,7 @@ const chatAboutReview = async (req, res) => {
     const { reviewId } = req.params;
     const { userMessage, chatHistory, code, language, complexityMetrics } = req.body;
 
-    if (!userMessage) {
+    if (!userMessage || !userMessage.trim()) {
       return res.status(400).json({ message: 'userMessage is required' });
     }
 
@@ -226,6 +272,7 @@ const getReviewHistory = async (req, res) => {
       projectName: r.project.projectName,
       reviewType: r.reviewType,
       overallScore: r.overallScore,
+      passedQualityGate: r.passedQualityGate,
       summary: r.summary,
       issuesCount: r.findings.length,
       createdAt: r.createdAt,
@@ -286,6 +333,99 @@ const deleteReview = async (req, res) => {
   }
 };
 
+const getScoreTrend = async (req, res) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: { project: { userId: req.user.id }, overallScore: { not: null } },
+      select: {
+        overallScore: true,
+        createdAt: true,
+        project: { select: { projectName: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const trend = reviews.map((r) => ({
+      date: r.createdAt,
+      score: r.overallScore,
+      projectName: r.project.projectName,
+    }));
+
+    res.json(trend);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc  Stream AI review live via Server-Sent Events
+// @route GET /api/reviews/stream-review?code=...&language=...
+const streamReview = async (req, res) => {
+  try {
+    const { code, language } = req.query;
+
+    if (!code || !code.trim()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ message: 'Code is required' }));
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    const decodedCode = decodeURIComponent(code);
+
+    const finalResult = await streamAIReview(decodedCode, language || 'javascript', (chunkText) => {
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunkText })}\n\n`);
+    });
+
+    res.write(`data: ${JSON.stringify({ type: 'done', result: finalResult })}\n\n`);
+    res.end();
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    res.end();
+  }
+};
+
+// @desc  Semantic search across review history
+// @route GET /api/reviews/search?q=...
+const searchReviews = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.status(400).json({ message: 'Query is required' });
+    }
+
+    const queryVector = await generateEmbedding(q);
+    if (!queryVector) {
+      return res.status(500).json({ message: 'Failed to generate query embedding' });
+    }
+
+    const reviews = await prisma.review.findMany({
+      where: { project: { userId: req.user.id }, embedding: { not: null } },
+      include: { project: true, findings: true },
+    });
+
+    const scored = reviews
+      .map((r) => ({
+        id: r.id,
+        projectName: r.project.projectName,
+        summary: r.summary,
+        overallScore: r.overallScore,
+        createdAt: r.createdAt,
+        issuesCount: r.findings.length,
+        score: cosineSimilarity(queryVector, JSON.parse(r.embedding)),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    res.json(scored);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   submitCode,
   submitFile,
@@ -293,4 +433,7 @@ module.exports = {
   getReviewHistory,
   getReviewDetail,
   deleteReview,
+  getScoreTrend,
+  streamReview,
+  searchReviews,
 };

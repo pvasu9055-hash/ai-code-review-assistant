@@ -3,9 +3,28 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const runStaticAnalysis = async (sourceCode, fileName = 'submitted.js') => {
+const JS_TS_LANGUAGES = ['javascript', 'typescript'];
+
+const runStaticAnalysis = async (sourceCode, fileName = 'submitted.js', language = 'javascript') => {
+  if (!JS_TS_LANGUAGES.includes(language)) {
+    return [
+      {
+        severity: 'info',
+        issue: 'Static analysis not applicable',
+        explanation: `ESLint-based static analysis only supports JavaScript and TypeScript. Skipped for ${language}.`,
+        suggestedFix: null,
+        fileName,
+        lineNumber: null,
+      },
+    ];
+  }
+
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lint-'));
-  const tempFilePath = path.join(tempDir, fileName.endsWith('.js') || fileName.endsWith('.ts') ? fileName : `${fileName}.js`);
+  const ext = language === 'typescript' ? '.ts' : '.js';
+  const tempFilePath = path.join(
+    tempDir,
+    fileName.endsWith('.js') || fileName.endsWith('.ts') ? fileName : `${fileName}${ext}`
+  );
 
   fs.writeFileSync(tempFilePath, sourceCode);
 
@@ -14,9 +33,12 @@ const runStaticAnalysis = async (sourceCode, fileName = 'submitted.js') => {
     overrideConfigFile: path.join(process.cwd(), '.eslintrc.json'),
   });
 
-  const results = await eslint.lintFiles([tempFilePath]);
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
+  let results;
+  try {
+    results = await eslint.lintFiles([tempFilePath]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 
   const findings = [];
   results.forEach((result) => {
