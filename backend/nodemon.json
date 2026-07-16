@@ -1,3 +1,1 @@
-{
-  "ignore": ["uploads/*", "node_modules/*"]
-}
+﻿{"ignore": ["*.log", "test-review-file.js", ".env"], "watch": ["src"]}
