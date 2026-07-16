@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   submitCode,
   submitFile,
+  submitDiff,
   chatAboutReview,
   getReviewHistory,
   getReviewDetail,
@@ -16,6 +17,7 @@ const upload = require('../middleware/uploadMiddleware');
 
 router.post('/submit-code', protect, submitCode);
 router.post('/submit-file', protect, upload.single('file'), submitFile);
+router.post('/diff', protect, submitDiff);
 router.get('/analytics/trend', protect, getScoreTrend);
 router.get('/stream-review', protect, streamReview);
 router.get('/search', protect, searchReviews);

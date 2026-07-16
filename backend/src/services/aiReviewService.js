@@ -4,84 +4,18 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Extra guidance appended to the prompt depending on language, so the model
-// focuses on what actually matters for that language instead of generic advice.
 const LANGUAGE_GUIDANCE = {
-  sql: `
-Since this is SQL, focus specifically on:
-- SQL injection risk (string concatenation instead of parameterized queries/prepared statements)
-- Missing or incorrect indexes on columns used in WHERE/JOIN/ORDER BY
-- Normalization issues (redundant data, missing foreign keys, poor schema design)
-- Dangerous DDL/DML run without safeguards (DROP, TRUNCATE, DELETE/UPDATE without WHERE)
-- Transaction handling and isolation level concerns
-- N+1 query patterns if multiple queries are shown`,
-  python: `
-Since this is Python, focus specifically on:
-- Type hints and their absence
-- Mutable default arguments
-- Exception handling (bare except, swallowing errors)
-- PEP 8 style issues worth flagging
-- Use of eval/exec, pickle on untrusted data, or shell=True in subprocess calls`,
-  java: `
-Since this is Java, focus specifically on:
-- Null pointer risks and missing Optional usage
-- Resource leaks (unclosed streams/connections not using try-with-resources)
-- Exception handling anti-patterns (catching generic Exception, swallowing exceptions)
-- Thread safety issues in shared state`,
-  go: `
-Since this is Go, focus specifically on:
-- Unchecked errors (ignoring returned error values)
-- Goroutine leaks and missing context cancellation
-- Improper use of defer in loops
-- Race conditions on shared state`,
-  rust: `
-Since this is Rust, focus specifically on:
-- Unnecessary use of unwrap()/expect() that could panic in production
-- Unsafe blocks and whether they're justified
-- Ownership/borrowing patterns that could be simplified
-- Error handling via Result vs panics`,
-  c: `
-Since this is C, focus specifically on:
-- Buffer overflows and unchecked array bounds
-- Memory management (missing free, use-after-free, double free)
-- Null pointer dereference risks
-- Unsafe string functions (strcpy, gets, sprintf without bounds)`,
-  cpp: `
-Since this is C++, focus specifically on:
-- Memory management (raw new/delete vs smart pointers)
-- Resource management (RAII violations)
-- Undefined behavior risks
-- Const-correctness`,
-  csharp: `
-Since this is C#, focus specifically on:
-- IDisposable usage and missing using statements
-- Null reference risks (nullable reference types)
-- LINQ performance issues
-- Async/await misuse (blocking on async code)`,
-  php: `
-Since this is PHP, focus specifically on:
-- SQL injection and XSS risks
-- Unsafe use of eval, include/require with user input
-- Type juggling issues
-- Deprecated function usage`,
-  ruby: `
-Since this is Ruby, focus specifically on:
-- Mass assignment / unsafe parameter handling
-- N+1 query patterns (if ActiveRecord-like code)
-- Metaprogramming risks
-- Exception handling anti-patterns`,
+  javascript: 'Pay attention to var vs let/const, missing semicolons, == vs ===, unhandled promises, and callback error handling.',
+  typescript: 'Pay attention to any usage, missing type annotations, unsafe type assertions, and improper null/undefined handling.',
+  python: 'Pay attention to PEP8 style, mutable default arguments, bare except clauses, and missing type hints.',
+  java: 'Pay attention to null pointer risks, resource leaks (unclosed streams), improper exception handling, and access modifier misuse.',
 };
 
-const runAIReview = async (sourceCode, language = 'javascript') => {
-  const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
-
-  const normalizedLang = language.toLowerCase();
-  const guidance = LANGUAGE_GUIDANCE[normalizedLang] || '';
-
-  const prompt = `You are a senior code reviewer. Review the following ${language} code and respond ONLY in valid JSON, no markdown, no extra text, in this exact format:
+const buildReviewPrompt = (code, language, guidance) => {
+  return `You are a senior code reviewer. Review the following ${language} code for bugs, security issues, performance problems, and code quality. Respond ONLY in valid JSON, no markdown, no extra text, in this exact format:
 {
   "overallScore": <number 0-100>,
-  "summary": "<2-3 sentence summary of code quality>",
+  "summary": "<2-3 sentence summary of the code quality>",
   "findings": [
     {
       "severity": "error" | "warning" | "info",
@@ -93,9 +27,16 @@ const runAIReview = async (sourceCode, language = 'javascript') => {
 }
 ${guidance}
 Code to review:
-${sourceCode}`;
+${code}`;
+};
 
-  let lastError;
+const runAIReview = async (code, language = 'javascript') => {
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+
+  const normalizedLang = language.toLowerCase();
+  const guidance = LANGUAGE_GUIDANCE[normalizedLang] || '';
+
+  const prompt = buildReviewPrompt(code, language, guidance);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -113,7 +54,6 @@ ${sourceCode}`;
         };
       }
     } catch (err) {
-      lastError = err;
       if (err.status === 503 && attempt < 3) {
         await sleep(2000 * attempt);
         continue;
@@ -124,9 +64,94 @@ ${sourceCode}`;
 
   return {
     overallScore: null,
-    summary: 'AI review temporarily unavailable (Gemini service overloaded). Static analysis results are still shown below.',
+    summary: 'AI review temporarily unavailable (Gemini service overloaded).',
     findings: [],
   };
 };
 
-module.exports = { runAIReview };
+const buildDiffReviewPrompt = (fileName, snippet, language, guidance) => {
+  return `You are a senior code reviewer doing a pull-request-style review. You are shown ONLY the changed/added lines from a diff — not the whole file. Focus your review strictly on these changed lines. Respond ONLY in valid JSON, no markdown, no extra text, in this exact format:
+{
+  "fileName": "${fileName}",
+  "overallScore": <number 0-100>,
+  "summary": "<2-3 sentence summary of the change quality>",
+  "findings": [
+    {
+      "severity": "error" | "warning" | "info",
+      "issue": "<short issue title>",
+      "explanation": "<what's wrong>",
+      "suggestedFix": "<how to fix it>",
+      "lineNumber": <the line number from the snippet, if applicable, else null>
+    }
+  ]
+}
+${guidance}
+Changed lines (format is "lineNumber: code"):
+${snippet}`;
+};
+
+const runDiffAwareReview = async (fileName, snippet, language = 'javascript') => {
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+
+  const normalizedLang = language.toLowerCase();
+  const guidance = LANGUAGE_GUIDANCE[normalizedLang] || '';
+
+  const prompt = buildDiffReviewPrompt(fileName, snippet, language, guidance);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const cleaned = text.replace(/```json|```/g, '').trim();
+
+      try {
+        return JSON.parse(cleaned);
+      } catch (parseErr) {
+        return {
+          fileName,
+          overallScore: null,
+          summary: 'AI review completed but response could not be parsed.',
+          findings: [],
+        };
+      }
+    } catch (err) {
+      if (err.status === 503 && attempt < 3) {
+        await sleep(2000 * attempt);
+        continue;
+      }
+      break;
+    }
+  }
+
+  return {
+    fileName,
+    overallScore: null,
+    summary: 'AI review temporarily unavailable (Gemini service overloaded).',
+    findings: [],
+  };
+};
+
+const runDiffAwareReviewBatch = async (fileSnippets, language = 'javascript') => {
+  const results = [];
+
+  for (const file of fileSnippets) {
+    if (!file.snippet || file.snippet.trim() === '') continue;
+    const review = await runDiffAwareReview(file.fileName, file.snippet, language);
+    results.push({ ...review, changeSummary: file.changeSummary });
+  }
+
+  const totalFindings = results.reduce((sum, r) => sum + (r.findings?.length || 0), 0);
+  const scoredResults = results.filter((r) => typeof r.overallScore === 'number');
+  const overallScore =
+    scoredResults.length > 0
+      ? Math.round(scoredResults.reduce((sum, r) => sum + r.overallScore, 0) / scoredResults.length)
+      : null;
+
+  return {
+    overallScore,
+    totalFindings,
+    fileReviews: results,
+  };
+};
+
+module.exports = { runAIReview, runDiffAwareReview, runDiffAwareReviewBatch };

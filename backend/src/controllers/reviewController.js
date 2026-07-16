@@ -1,12 +1,13 @@
 const fs = require('fs');
 const prisma = require('../config/db');
 const { runStaticAnalysis } = require('../services/staticAnalysisService');
-const { runAIReview } = require('../services/aiReviewService');
+const { runAIReview, runDiffAwareReviewBatch } = require('../services/aiReviewService');
 const { runComplexityAnalysis } = require('../services/complexityAnalysisService');
 const { runDocGeneration } = require('../services/docGenerationService');
 const { runChatQuery } = require('../services/chatService');
 const { streamAIReview } = require('../services/aiReviewStreamService');
 const { generateEmbedding, cosineSimilarity } = require('../services/embeddingService');
+const { parseUnifiedDiff, buildReviewSnippets } = require('../services/diffAnalysisService');
 
 const submitCode = async (req, res) => {
   try {
@@ -200,6 +201,91 @@ const submitFile = async (req, res) => {
       fileName: req.file.originalname,
       fileSize: req.file.size,
       codePreview: fileContent.substring(0, 200),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc  Submit a unified diff (like a git diff / PR patch) for focused review
+// @route POST /api/reviews/diff
+const submitDiff = async (req, res) => {
+  try {
+    const { diff, language, projectName, minScoreThreshold, maxComplexityThreshold } = req.body;
+
+    if (!diff || !diff.trim() || !projectName || !projectName.trim()) {
+      return res.status(400).json({ message: 'Diff and project name are required' });
+    }
+
+    if (diff.length > 100000) {
+      return res.status(400).json({ message: 'Diff is too large. Maximum 100,000 characters.' });
+    }
+
+    const parsedFiles = parseUnifiedDiff(diff);
+
+    if (parsedFiles.length === 0) {
+      return res.status(400).json({ message: 'Could not parse any files from the provided diff' });
+    }
+
+    const fileSnippets = buildReviewSnippets(parsedFiles);
+
+    const project = await prisma.project.create({
+      data: {
+        userId: req.user.id,
+        projectName,
+        ...(minScoreThreshold !== undefined && { minScoreThreshold: Number(minScoreThreshold) }),
+        ...(maxComplexityThreshold !== undefined && { maxComplexityThreshold: Number(maxComplexityThreshold) }),
+      },
+    });
+
+    const diffReviewResult = await runDiffAwareReviewBatch(fileSnippets, language || 'javascript');
+
+    const allFindingsForDb = diffReviewResult.fileReviews.flatMap((fileReview) =>
+      (fileReview.findings || []).map((f) => ({
+        severity: f.severity,
+        issue: f.issue,
+        explanation: f.explanation,
+        suggestedFix: f.suggestedFix || null,
+        fileName: fileReview.fileName,
+        lineNumber: f.lineNumber || null,
+      }))
+    );
+
+    const passedQualityGate =
+      diffReviewResult.overallScore === null || diffReviewResult.overallScore >= project.minScoreThreshold;
+
+    const embeddingText = diffReviewResult.fileReviews
+      .map((r) => `${r.fileName}: ${r.summary}`)
+      .filter(Boolean)
+      .join('\n');
+    const embeddingVector = await generateEmbedding(embeddingText);
+
+    const review = await prisma.review.create({
+      data: {
+        projectId: project.id,
+        reviewType: 'diff',
+        overallScore: diffReviewResult.overallScore,
+        passedQualityGate,
+        summary: `Reviewed ${parsedFiles.length} changed file(s), ${diffReviewResult.totalFindings} finding(s).`,
+        embedding: embeddingVector ? JSON.stringify(embeddingVector) : null,
+      },
+    });
+
+    if (allFindingsForDb.length > 0) {
+      await prisma.reviewFinding.createMany({
+        data: allFindingsForDb.map((f) => ({ ...f, reviewId: review.id })),
+      });
+    }
+
+    res.status(201).json({
+      message: 'Diff submitted and analyzed successfully',
+      project,
+      review,
+      fileReviews: diffReviewResult.fileReviews,
+      qualityGate: {
+        passed: passedQualityGate,
+        minScoreThreshold: project.minScoreThreshold,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -429,6 +515,7 @@ const searchReviews = async (req, res) => {
 module.exports = {
   submitCode,
   submitFile,
+  submitDiff,
   chatAboutReview,
   getReviewHistory,
   getReviewDetail,
