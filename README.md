@@ -1,280 +1,316 @@
-# AI Code Review Assistant
+<div align="center">
 
-An AI-powered, full-stack code review platform that goes beyond simple linting — it combines static analysis, LLM-based review, complexity metrics, semantic search, and multiple advanced review modes (diff-aware, multi-agent, RAG-based standards checking, and GitHub PR integration) into a single tool.
+# ⚡ AI Code Review Assistant
 
-**Live app:** [https://aicode.vasutech.online](https://aicode.vasutech.online)
-**API:** [https://codeapi.vasutech.online](https://codeapi.vasutech.online)
+### An AI-powered code review platform that thinks like a senior engineering team — not just a linter.
 
----
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://aicode.vasutech.online)
+[![Backend](https://img.shields.io/badge/API-live-blue?style=for-the-badge)](https://codeapi.vasutech.online)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge)]()
 
-## Table of Contents
+[![Node.js](https://img.shields.io/badge/Node.js-22-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://neon.tech)
+[![Gemini](https://img.shields.io/badge/AI-Gemini-8E75B2?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
+[![AWS](https://img.shields.io/badge/Hosted_on-AWS_EB-FF9900?style=flat-square&logo=amazonaws&logoColor=white)](https://aws.amazon.com/elasticbeanstalk/)
+[![Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://vercel.com)
 
-1. [Overview](#overview)
-2. [Core Features](#core-features)
-3. [Advanced Review Modes](#advanced-review-modes)
-4. [Authentication System](#authentication-system)
-5. [Tech Stack](#tech-stack)
-6. [Architecture](#architecture)
-7. [Database Schema](#database-schema)
-8. [API Reference](#api-reference)
-9. [Project Structure](#project-structure)
-10. [Local Setup](#local-setup)
-11. [Environment Variables](#environment-variables)
-12. [Deployment](#deployment)
-13. [Roadmap](#roadmap)
+**[🚀 Live App](https://aicode.vasutech.online)** · **[📡 API](https://codeapi.vasutech.online)** · **[🐛 Report Bug](../../issues)**
+
+</div>
 
 ---
 
-## Overview
+## 📸 Preview
 
-AI Code Review Assistant lets a developer submit code — pasted, uploaded as a file, or as a git diff — and receive a structured review combining:
+<div align="center">
 
-- **Static analysis** (rule-based checks)
-- **AI review** (Gemini-powered, language-aware prompting)
-- **Complexity analysis** (cyclomatic complexity, LOC, function/class counts)
-- **Auto-generated documentation**
+| Login & Auth | AI Insights Dashboard |
+|:---:|:---:|
+| *Password + Email OTP, glassmorphism UI* | *AI-generated cross-repo insights* |
+| ![Login Screenshot](docs/screenshots/login.png) | ![Analytics Screenshot](docs/screenshots/analytics.png) |
 
-On top of single-review analysis, the platform tracks review history per project, computes quality-score trends over time, and generates AI-written insights summarizing patterns across a user's entire review history (most common issue, security/performance breakdown, most-improved repo, etc.).
+| Profile | Diff Review |
+|:---:|:---:|
+| *3D tilt-interactive stats* | *PR-style focused review* |
+| ![Profile Screenshot](docs/screenshots/profile.png) | ![Diff Review Screenshot](docs/screenshots/diff-review.png) |
 
----
+</div>
 
-## Core Features
-
-### Code Submission
-- **Paste code** directly into the editor
-- **Upload a file** (any common source file)
-- Both paths run the same analysis pipeline: static analysis → AI review → complexity analysis → doc generation
-
-### Review Output
-- Overall quality score (0–100)
-- Findings list with severity (`error` / `warning` / `info`), explanation, and suggested fix
-- Complexity metrics (LOC, function count, class count, cyclomatic complexity + rating)
-- Auto-generated documentation for the submitted code
-- Quality gate pass/fail against per-project thresholds (min score, max complexity)
-
-### History & Analytics
-- Full review history with search, filtering (by score range, review type), and sorting
-- Per-project analytics: review count, average score, last-reviewed date, review types used
-- Score trend line chart across all reviews
-- **AI Insights panel** — an LLM-generated narrative summarizing trends across *all* of a user's repositories (most common issue, security/performance issue counts, most-improved repo), with the underlying counts computed deterministically in code (not hallucinated) and only the narrative sentence generated by the model
-
-### Semantic Search
-- Every review gets an embedding generated from its summary + findings
-- `/reviews/search?q=...` performs cosine-similarity search across a user's review history — e.g. searching "memory leak" surfaces relevant past reviews even if that exact phrase was never used
-
-### Real-Time Streaming Review
-- Server-Sent Events (SSE) endpoint streams the AI's review token-by-token as it's generated, instead of waiting for the full response
-
-### In-Review Chat
-- Chat with an AI assistant about a specific review, with the code, findings, and complexity metrics as context — useful for asking "why is this flagged" or "how would I fix this differently"
+> 💡 Create a `docs/screenshots/` folder in your repo and drop in PNGs with these filenames — they'll render automatically above.
 
 ---
 
-## Advanced Review Modes
+## ✨ Why This Isn't Just Another "AI Wrapper"
 
-### 1. Diff-Aware Review (PR-style)
-Instead of reviewing an entire file, this mode accepts a **unified diff** (the same format `git diff` produces) and reviews only the changed lines.
+Most AI code review tools are a single prompt wrapped in a UI. This one isn't:
 
-- `diffAnalysisService.js` parses the diff into per-file added/removed lines
-- Each file's changed lines are sent to the AI as a compact snippet (`lineNumber: code`)
-- The AI is explicitly told it's seeing only a diff and should focus review on those lines
-- Results are aggregated across all changed files into one review with a combined score
-
-This mirrors how a human reviewer looks at a GitHub pull request — reviewing the delta, not the whole codebase.
-
-### 2. Multi-Agent Review System
-Instead of one AI call doing everything, the code is reviewed by **multiple specialized agents**, each with a narrow focus:
-
-- **Bug Detection Agent** — logic errors, edge cases, null/undefined handling
-- **Security Agent** — injection risks, unsafe patterns, secret handling
-- **Performance Agent** — inefficiencies, unnecessary computation, memory concerns
-- **Code Quality Agent** — readability, naming, structure, maintainability
-
-Each agent runs independently and returns its own findings; a final aggregation step combines all agent reports into one unified summary and score. This produces more focused, higher-signal findings than a single generalist prompt, and mirrors how real engineering teams split code review responsibilities.
-
-### 3. RAG-Based Standards Review
-Addresses a real gap in most AI code review tools: generic best practices instead of *your team's* actual standards.
-
-**Flow:**
-1. User uploads a coding-standards document (e.g. a style guide)
-2. The document is chunked and embedded, stored in Postgres via `pgvector`
-3. When code is submitted for RAG review, the code itself is embedded
-4. A vector similarity search (`<=>` operator in `pgvector`) retrieves the most relevant standard chunks for that specific code
-5. Those chunks are injected into the AI review prompt, and the AI is instructed to explicitly check compliance against them, flagging which specific standard was violated per finding
-
-This means the review is grounded in retrieved, verifiable source material rather than the model's general training knowledge — a genuine Retrieval-Augmented Generation pipeline, not just a keyword search.
-
-### 4. GitHub PR Integration
-Closes the loop from "paste code manually" to "reviews happen automatically on real pull requests."
-
-- A GitHub webhook is registered on a repository
-- On a PR event, the webhook payload is verified (HMAC signature check via `githubWebhookVerify.js`)
-- The PR's diff is fetched via the GitHub API (`githubService.js`, using `axios`)
-- The diff is run through the diff-aware review pipeline
-- Results are posted back as comments directly on the pull request via the GitHub API
-
-This turns the tool from a manual utility into an automated part of a real development workflow.
+- 🔍 **Reviews diffs, not just files** — like a real PR reviewer, focusing only on what changed
+- 🤖 **Four specialized AI agents**, not one generalist — bugs, security, performance, and quality reviewed independently, then synthesized
+- 📚 **True RAG pipeline** — your team's actual coding standards get embedded into a vector DB and retrieved per-review, so findings cite *your* rules, not generic advice
+- 🔗 **Closes the loop with GitHub** — PR webhooks trigger automatic reviews, with results posted straight back as PR comments
+- 🧠 **Meta-analysis layer** — a second AI pass analyzes trends *across* all your past reviews and writes a plain-English engineering summary
+- 🔐 **Production-grade auth** — password + email OTP, rate limiting, forgot-password, verified custom-domain transactional email
 
 ---
 
-## Authentication System
+## 🧩 Feature Matrix
 
-A full dual-mode authentication system, built from scratch:
-
-### Password Authentication
-- Standard email + password signup/login
-- Passwords hashed with `bcryptjs`
-- JWT issued on successful login, with configurable expiry
-
-### Email OTP Authentication
-- Alternative to password login — signup and login both support one-time-code verification via email
-- 6-digit numeric codes, 5-minute expiry, single-use (marked `consumed` after verification)
-- Old unconsumed codes for the same email+purpose are invalidated when a new one is requested
-- Separate `purpose` field (`signup` / `login` / `reset`) lets one `Otp` table safely serve multiple flows without collision
-
-### Forgot Password (OTP-based reset)
-- Request → code emailed → verify code + set new password, no separate "reset link" needed
-- Deliberately returns the same success message whether or not the email is registered, to avoid leaking which emails have accounts
-
-### Security Hardening
-- **Rate limiting** — OTP request endpoints capped at 5 requests per 15 minutes per IP (`express-rate-limit`), preventing spam/abuse of the email-sending endpoints
-- **Email verification tracking** — `emailVerified` flag on the user record, automatically set to `true` the first time a user successfully completes an OTP flow
-- **Remember me** — login supports issuing a 30-day token instead of the default short-lived one
-
-### Transactional Email
-- Emails sent via **Resend**, from a custom domain (`otp@vasutech.online`) rather than a generic Gmail address
-- Branded HTML email template (dark header, large monospaced code display, footer) consistent across signup, login, and password-reset emails
-
----
-
-## Tech Stack
-
-### Backend
-| Layer | Technology |
+| Feature | Description |
 |---|---|
-| Runtime | Node.js 22 |
-| Framework | Express 5 |
-| ORM | Prisma 6 |
-| Database | PostgreSQL (Neon, serverless) with `pgvector` extension |
-| Auth | JWT (`jsonwebtoken`), `bcryptjs` |
-| AI | Google Gemini (`@google/generative-ai`), `gemini-flash-lite-latest` model |
-| Email | Resend (`resend`) |
-| File uploads | Multer |
-| Rate limiting | `express-rate-limit` |
-| GitHub integration | Axios (GitHub REST API), HMAC webhook verification |
-| Diff parsing | `parse-diff` |
-
-### Frontend
-| Layer | Technology |
-|---|---|
-| Framework | React + TypeScript |
-| Build tool | Vite |
-| Styling | Tailwind CSS, custom glassmorphism design system |
-| Charts | Recharts |
-| Routing | React Router |
-| HTTP client | Axios |
-
-### Infrastructure
-| Component | Provider |
-|---|---|
-| Backend hosting | AWS Elastic Beanstalk (Node.js platform, ap-south-1) |
-| Frontend hosting | Vercel |
-| Database | Neon (serverless Postgres) |
-| DNS / CDN / SSL | Cloudflare |
-| Email delivery | Resend |
-| Custom domains | `aicode.vasutech.online` (frontend), `codeapi.vasutech.online` (backend, proxied through Cloudflare for HTTPS) |
+| 📝 **Paste / Upload Review** | Static analysis + AI review + complexity metrics + auto-docs, in one pass |
+| 🔀 **Diff-Aware Review** | Submit a unified diff — only changed lines get reviewed, PR-style |
+| 🤖 **Multi-Agent Review** | 4 specialist agents (bugs / security / performance / quality) + aggregator |
+| 📚 **RAG Standards Review** | Upload your style guide → embedded → retrieved per-review → compliance-checked |
+| 🐙 **GitHub PR Integration** | Webhook-triggered reviews, posted automatically as PR comments |
+| 📊 **Analytics & AI Insights** | Score trends, per-repo breakdowns, and an AI-written summary of patterns |
+| 🔎 **Semantic Search** | Vector search across your entire review history — search by meaning, not keywords |
+| ⚡ **Live Streaming Review** | Server-Sent Events stream the AI's review token-by-token |
+| 💬 **In-Review Chat** | Ask follow-up questions about any review, with full context |
+| 🔐 **Dual-Mode Auth** | Password or Email OTP, for both signup and login |
+| 🔁 **Forgot Password** | OTP-based reset flow, no dead "reset link" emails |
+| 🛡️ **Rate Limiting** | OTP endpoints capped to prevent abuse |
+| ✉️ **Branded Transactional Email** | Sent via Resend from a verified custom domain |
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
-```
-┌─────────────────────┐         ┌──────────────────────┐
-│   React Frontend     │  HTTPS  │   Express Backend      │
-│ aicode.vasutech.online│ ──────▶ │ codeapi.vasutech.online│
-└─────────────────────┘         └──────────┬───────────┘
-                                            │
-                    ┌───────────────────────┼───────────────────────┐
-                    │                       │                       │
-             ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
-             │  PostgreSQL  │        │  Gemini API    │       │   Resend      │
-             │  (Neon +     │        │  (AI review /  │       │  (transactional│
-             │   pgvector)  │        │   embeddings)  │       │   email)      │
-             └──────────────┘        └───────────────┘       └───────────────┘
-                                            │
-                                     ┌───────▼───────┐
-                                     │  GitHub API    │
-                                     │ (PR diffs,     │
-                                     │  webhooks,     │
-                                     │  comments)     │
-                                     └───────────────┘
+```mermaid
+flowchart TB
+    subgraph Client
+        FE["React + TypeScript<br/>aicode.vasutech.online"]
+    end
+
+    subgraph Backend["Express Backend — codeapi.vasutech.online"]
+        API[REST API]
+        Auth[Auth + OTP Service]
+        Review[Review Pipeline]
+        Diff[Diff Analysis]
+        Multi[Multi-Agent Orchestrator]
+        RAG[RAG Retrieval]
+    end
+
+    subgraph External
+        DB[("PostgreSQL + pgvector<br/>Neon")]
+        Gemini["Google Gemini<br/>AI + Embeddings"]
+        Resend["Resend<br/>Transactional Email"]
+        GitHub["GitHub API<br/>PR Diffs + Webhooks"]
+    end
+
+    FE -- HTTPS --> API
+    API --> Auth
+    API --> Review
+    Review --> Diff
+    Review --> Multi
+    Review --> RAG
+    Auth --> DB
+    Auth --> Resend
+    Review --> DB
+    Review --> Gemini
+    RAG --> DB
+    RAG --> Gemini
+    Diff --> GitHub
+    GitHub -. webhook .-> API
 ```
 
-The backend runs on a single Elastic Beanstalk environment (auto-scaling group, load balancer, CloudWatch alarms provisioned automatically by EB). Cloudflare sits in front of the backend's custom domain purely for HTTPS termination (EB itself only serves plain HTTP), avoiding the need to manage an ACM certificate manually.
+**Infra:** AWS Elastic Beanstalk (backend) · Vercel (frontend) · Neon Postgres · Cloudflare (DNS/SSL) · Resend (email)
 
 ---
 
-## Database Schema
+## 🔬 Deep Dive: The Four Review Modes
 
-Key models (see `prisma/schema.prisma` for the full definition):
+<table>
+<tr>
+<td width="50%" valign="top">
 
-- **User** — auth identity, `emailVerified` flag, relations to projects and OTPs
-- **Otp** — email/code/purpose/expiry/consumed, indexed on `(identifier, purpose)` for fast lookup
-- **Project** — a named grouping of reviews, with per-project quality-gate thresholds (`minScoreThreshold`, `maxComplexityThreshold`)
-- **Review** — one review run, with `reviewType` (`paste` / `file` / `diff` / `multi-agent` / `rag`), score, embedding vector, summary
-- **ReviewFinding** — individual findings belonging to a review (severity, issue, explanation, suggested fix, file/line)
-- **CodingStandard** / **StandardChunk** — uploaded standards documents and their embedded chunks, used by the RAG review pipeline
+### 1️⃣ Diff-Aware Review
+Parses a unified `git diff`, extracts only added/changed lines per file, and reviews *just the delta* — the same way a human reviews a pull request instead of re-reading the whole codebase every time.
+
+```
+git diff
+    ↓
+parse-diff → per-file changed lines
+    ↓
+AI reviews only the delta
+    ↓
+Aggregated multi-file report
+```
+
+</td>
+<td width="50%" valign="top">
+
+### 2️⃣ Multi-Agent Review
+Four independent AI passes, each with a narrow specialty, run in sequence and get combined into one report — mirroring how real teams split review responsibilities.
+
+```
+Code
+ ├─▶ 🐛 Bug Detection Agent
+ ├─▶ 🔒 Security Agent
+ ├─▶ ⚡ Performance Agent
+ └─▶ 📐 Code Quality Agent
+        ↓
+   Aggregated Report
+```
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 3️⃣ RAG Standards Review
+Your coding standards document is chunked and embedded into `pgvector`. At review time, the submitted code is embedded too, and a similarity search retrieves the most relevant standard passages — which get injected directly into the AI's prompt.
+
+```
+Style Guide PDF/TXT
+    ↓
+Chunked + Embedded
+    ↓
+pgvector similarity search
+    ↓
+AI reviews code against
+YOUR retrieved standards
+```
+
+</td>
+<td width="50%" valign="top">
+
+### 4️⃣ GitHub PR Integration
+A registered webhook fires on PR events, the diff is pulled via the GitHub API, run through the diff-aware pipeline, and the findings are posted back as real PR comments — fully automated.
+
+```
+GitHub Pull Request
+    ↓
+Webhook (HMAC verified)
+    ↓
+Fetch PR diff via API
+    ↓
+Diff-aware AI review
+    ↓
+Comments posted to PR
+```
+
+</td>
+</tr>
+</table>
 
 ---
 
-## API Reference
+## 🛠️ Tech Stack
 
-All routes are prefixed with `/api`.
+<table>
+<tr>
+<td valign="top" width="33%">
 
-### Auth
-| Method | Route | Description |
-|---|---|---|
-| POST | `/auth/signup` | Password signup |
-| POST | `/auth/login` | Password login |
-| POST | `/auth/otp/email/signup/request` | Send signup OTP |
-| POST | `/auth/otp/email/signup/verify` | Verify OTP + create account |
-| POST | `/auth/otp/email/login/request` | Send login OTP |
-| POST | `/auth/otp/email/login/verify` | Verify OTP + login |
-| POST | `/auth/otp/password/reset/request` | Request password reset code |
-| POST | `/auth/otp/password/reset/verify` | Verify code + set new password |
-| POST | `/auth/avatar` | Upload profile avatar |
+**Backend**
+- Node.js 22 + Express 5
+- Prisma ORM
+- PostgreSQL + pgvector (Neon)
+- Google Gemini API
+- Resend (email)
+- JWT + bcryptjs
+- Multer, express-rate-limit
 
-### Reviews
-| Method | Route | Description |
-|---|---|---|
-| POST | `/reviews/submit-code` | Submit pasted code for full review |
-| POST | `/reviews/submit-file` | Submit uploaded file for full review |
-| POST | `/reviews/diff` | Submit a unified diff for PR-style review |
-| POST | `/reviews/multi-agent` | Submit code for multi-agent review |
-| POST | `/reviews/rag` | Submit code for RAG-based standards review |
-| GET | `/reviews` | Review history (search/filter/sort) |
-| GET | `/reviews/:reviewId` | Single review detail |
-| DELETE | `/reviews/:reviewId` | Delete a review |
-| POST | `/reviews/:reviewId/chat` | Chat about a specific review |
-| GET | `/reviews/stream-review` | SSE-streamed live review |
-| GET | `/reviews/search` | Semantic search across review history |
-| GET | `/reviews/analytics/trend` | Score trend over time |
-| GET | `/reviews/projects` | Per-project analytics |
-| GET | `/reviews/insights` | AI-generated cross-repo insights |
+</td>
+<td valign="top" width="33%">
 
-### Standards
-| Method | Route | Description |
-|---|---|---|
-| POST | `/standards/upload` | Upload + embed a coding-standards document |
+**Frontend**
+- React + TypeScript
+- Vite
+- Tailwind CSS
+- Recharts
+- React Router
+- Axios
 
-### GitHub
-| Method | Route | Description |
-|---|---|---|
-| POST | `/github/webhook` | PR webhook receiver (verified via HMAC) |
+</td>
+<td valign="top" width="33%">
+
+**Infrastructure**
+- AWS Elastic Beanstalk
+- Vercel
+- Neon (serverless Postgres)
+- Cloudflare (DNS/SSL)
+- Resend
+- Custom domains + HTTPS everywhere
+
+</td>
+</tr>
+</table>
 
 ---
 
-## Project Structure
+## 🔑 Authentication System
+
+Built as a genuinely complete auth system, not a starter-kit stub:
+
+- ✅ Password auth (bcrypt-hashed)
+- ✅ Email OTP auth — alternative signup/login flow, 6-digit codes, 5-min expiry, single-use
+- ✅ Forgot password via OTP (no dead reset-link emails)
+- ✅ Rate limiting on all OTP endpoints (5 req / 15 min / IP)
+- ✅ `emailVerified` tracking, auto-set on first successful OTP
+- ✅ "Remember me" → 30-day tokens
+- ✅ Branded HTML emails sent from a verified custom domain via Resend
+
+---
+
+## 📡 API Reference
+
+<details>
+<summary><b>Auth endpoints</b></summary>
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/api/auth/signup` | Password signup |
+| `POST` | `/api/auth/login` | Password login |
+| `POST` | `/api/auth/otp/email/signup/request` | Send signup OTP |
+| `POST` | `/api/auth/otp/email/signup/verify` | Verify OTP + create account |
+| `POST` | `/api/auth/otp/email/login/request` | Send login OTP |
+| `POST` | `/api/auth/otp/email/login/verify` | Verify OTP + login |
+| `POST` | `/api/auth/otp/password/reset/request` | Request password reset code |
+| `POST` | `/api/auth/otp/password/reset/verify` | Verify code + set new password |
+| `POST` | `/api/auth/avatar` | Upload profile avatar |
+
+</details>
+
+<details>
+<summary><b>Review endpoints</b></summary>
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/api/reviews/submit-code` | Full review of pasted code |
+| `POST` | `/api/reviews/submit-file` | Full review of uploaded file |
+| `POST` | `/api/reviews/diff` | Diff-aware PR-style review |
+| `POST` | `/api/reviews/multi-agent` | Multi-agent review |
+| `POST` | `/api/reviews/rag` | RAG standards-based review |
+| `GET` | `/api/reviews` | Review history (search/filter/sort) |
+| `GET` | `/api/reviews/:reviewId` | Single review detail |
+| `DELETE` | `/api/reviews/:reviewId` | Delete a review |
+| `POST` | `/api/reviews/:reviewId/chat` | Chat about a review |
+| `GET` | `/api/reviews/stream-review` | SSE-streamed live review |
+| `GET` | `/api/reviews/search` | Semantic search |
+| `GET` | `/api/reviews/analytics/trend` | Score trend over time |
+| `GET` | `/api/reviews/projects` | Per-project analytics |
+| `GET` | `/api/reviews/insights` | AI-generated cross-repo insights |
+
+</details>
+
+<details>
+<summary><b>Standards & GitHub endpoints</b></summary>
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/api/standards/upload` | Upload + embed coding standards |
+| `POST` | `/api/github/webhook` | PR webhook receiver (HMAC-verified) |
+
+</details>
+
+---
+
+## 📁 Project Structure
+
+<details>
+<summary>Click to expand</summary>
 
 ```
 ai-code-review-assistant/
@@ -293,16 +329,10 @@ ai-code-review-assistant/
 │   │   │   ├── authMiddleware.js
 │   │   │   ├── otpRateLimiter.js
 │   │   │   ├── uploadMiddleware.js
-│   │   │   ├── avatarUploadMiddleware.js
 │   │   │   └── errorMiddleware.js
 │   │   ├── routes/
-│   │   │   ├── authRoutes.js
-│   │   │   ├── otpAuthRoutes.js
-│   │   │   ├── reviewRoutes.js
-│   │   │   ├── standardsRoutes.js
-│   │   │   └── githubRoutes.js
 │   │   ├── services/
-│   │   │   ├── aiReviewService.js         # full-file, diff-aware, RAG, multi-agent, insights
+│   │   │   ├── aiReviewService.js
 │   │   │   ├── aiReviewStreamService.js
 │   │   │   ├── staticAnalysisService.js
 │   │   │   ├── complexityAnalysisService.js
@@ -312,7 +342,7 @@ ai-code-review-assistant/
 │   │   │   ├── diffAnalysisService.js
 │   │   │   ├── multiAgentReviewService.js
 │   │   │   ├── standardsService.js
-│   │   │   ├── otpService.js              # Resend email + OTP generation/verification
+│   │   │   ├── otpService.js
 │   │   │   ├── githubService.js
 │   │   │   └── githubWebhookVerify.js
 │   │   └── server.js
@@ -323,34 +353,28 @@ ai-code-review-assistant/
 │   │   ├── components/
 │   │   ├── layouts/DashboardLayout.tsx
 │   │   ├── pages/
-│   │   │   ├── Login.tsx
-│   │   │   ├── Signup.tsx
-│   │   │   ├── ForgotPassword.tsx
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── NewReview.tsx
-│   │   │   ├── DiffReview.tsx
-│   │   │   ├── MultiAgentReview.tsx
-│   │   │   ├── RAGReview.tsx
-│   │   │   ├── UploadStandards.tsx
-│   │   │   ├── GithubIntegration.tsx
-│   │   │   ├── History.tsx
-│   │   │   ├── ReviewDetail.tsx
-│   │   │   ├── Analytics.tsx
+│   │   │   ├── Login.tsx / Signup.tsx / ForgotPassword.tsx
+│   │   │   ├── Dashboard.tsx / NewReview.tsx
+│   │   │   ├── DiffReview.tsx / MultiAgentReview.tsx / RAGReview.tsx
+│   │   │   ├── UploadStandards.tsx / GithubIntegration.tsx
+│   │   │   ├── History.tsx / ReviewDetail.tsx / Analytics.tsx
 │   │   │   └── Profile.tsx
 │   │   └── App.tsx
 │   └── package.json
 └── README.md
 ```
 
+</details>
+
 ---
 
-## Local Setup
+## ⚙️ Local Setup
 
 ### Prerequisites
 - Node.js 22+
-- A PostgreSQL database with the `pgvector` extension available (Neon supports this out of the box)
-- A Google Gemini API key
-- A Resend API key + verified sending domain (or use Resend's sandbox sender for local testing)
+- PostgreSQL with `pgvector` extension (Neon supports this natively)
+- Google Gemini API key
+- Resend API key
 
 ### Backend
 
@@ -372,8 +396,6 @@ RESEND_API_KEY=your_resend_api_key
 RESEND_FROM_EMAIL=onboarding@resend.dev
 ```
 
-Run migrations and start the server:
-
 ```bash
 npx prisma migrate dev
 npm run dev
@@ -392,55 +414,39 @@ Create `frontend/.env`:
 VITE_API_URL=http://localhost:5000/api
 ```
 
-Start the dev server:
-
 ```bash
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`, talking to the backend at `http://localhost:5000`.
+App runs at `http://localhost:5173` → talks to backend at `http://localhost:5000`.
 
 ---
 
-## Environment Variables
+## 🚀 Deployment
 
-### Backend
-| Variable | Purpose |
-|---|---|
-| `PORT` | Server port |
-| `DATABASE_URL` | Postgres connection string |
-| `JWT_SECRET` | Secret used to sign JWTs |
-| `JWT_EXPIRES_IN` | Default token expiry (e.g. `7d`) |
-| `FRONTEND_URL` | Used for CORS allow-list |
-| `GEMINI_API_KEY` | Google Gemini API key |
-| `RESEND_API_KEY` | Resend API key |
-| `RESEND_FROM_EMAIL` | Verified sender address |
-
-### Frontend
-| Variable | Purpose |
-|---|---|
-| `VITE_API_URL` | Base URL the frontend calls for all API requests |
+| Component | Platform | Notes |
+|---|---|---|
+| Backend | AWS Elastic Beanstalk | `eb deploy` from CloudShell or local; env vars via `eb setenv` or Console UI |
+| Frontend | Vercel | Auto-deploys on push to `main`; root directory set to `frontend/` |
+| DNS/SSL | Cloudflare | Proxied CNAME for backend domain provides HTTPS (EB itself serves plain HTTP only) |
 
 ---
 
-## Deployment
+## 🗺️ Roadmap
 
-- **Backend** deploys to AWS Elastic Beanstalk via `eb deploy`, run from a code checkout (locally or in AWS CloudShell). Environment variables are set via `eb setenv` or the Elastic Beanstalk console's Environment Properties UI.
-- **Frontend** deploys to Vercel, auto-triggered on push to `main` (GitHub integration), with the root directory set to `frontend/` in a monorepo.
-- **Custom domains** are configured via Cloudflare DNS: a `CNAME` for the frontend points at Vercel, and a **proxied** (orange-cloud) `CNAME` for the backend points at the Elastic Beanstalk environment's default domain — the Cloudflare proxy is what provides HTTPS for the backend, since EB itself only serves plain HTTP by default.
-
----
-
-## Roadmap
-
-Potential next steps, roughly in order of effort:
-
-- [ ] Move avatar/file storage off the EB instance's local disk (currently ephemeral — wiped on redeploy) to persistent object storage (e.g. Cloudinary or S3)
-- [ ] CI/CD pipeline (GitHub Actions) to automate `eb deploy` and Prisma migrations on push, rather than manual CloudShell steps
-- [ ] Expand multi-agent system with a dedicated "final aggregator" agent pass to produce a single prioritized action list instead of four separate reports
-- [ ] Support additional VCS providers beyond GitHub (GitLab, Bitbucket) for PR integration
-- [ ] Team/organization accounts, so coding standards and review history can be shared across multiple users rather than being per-user
+- [ ] Move avatar/file storage off EB's ephemeral local disk → Cloudinary/S3
+- [ ] CI/CD pipeline (GitHub Actions) for automated deploys + migrations
+- [ ] Dedicated final-aggregator agent for the multi-agent pipeline
+- [ ] GitLab / Bitbucket support alongside GitHub
+- [ ] Team/organization accounts with shared standards + history
 
 ---
 
-**Built by Penkey Sri Vasu** — final-year B.Tech CSE student, Parul University.
+<div align="center">
+
+**Built by [Penkey Sri Vasu](https://vasutech.online)**
+Final-year B.Tech CSE · Parul University
+
+⭐ If this project is useful or interesting, consider starring the repo!
+
+</div>
