@@ -219,8 +219,8 @@ function Profile() {
         <h1 className="text-3xl font-medium text-[var(--color-text)] mb-1">Profile</h1>
         <p className="text-[var(--color-text-muted)] mb-8 text-sm">Your account and review activity</p>
 
-        {/* Identity card — 3D tilt, per-user avatar with upload */}
-        <TiltCard className="p-6 rounded-2xl border border-white/10 flex items-center gap-6 mb-4 overflow-hidden" style={cardBg}>
+        {/* Identity card — refined professional version */}
+        <TiltCard className="p-8 rounded-2xl border border-white/10 flex items-center gap-8 mb-6 overflow-hidden" style={cardBg}>
           <input
             ref={fileInputRef}
             type="file"
@@ -232,12 +232,12 @@ function Profile() {
             onClick={handleAvatarClick}
             role="button"
             title="Change profile photo"
-            className="flex-shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-xl font-semibold text-white relative cursor-pointer group overflow-hidden"
+            className="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center text-2xl font-semibold text-white relative cursor-pointer group overflow-hidden ring-2 ring-white/10"
             style={{
               background: avatarSrc
                 ? undefined
                 : 'linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-coral))',
-              boxShadow: '0 18px 34px -10px rgba(124,58,237,0.65), 0 0 0 4px rgba(255,255,255,0.05)',
+              boxShadow: '0 20px 40px -12px rgba(124,58,237,0.5), 0 0 0 4px rgba(255,255,255,0.04)',
               transform: `translateZ(50px) translateY(${floatY}px) rotate(${floatRot}deg)`,
             }}
           >
@@ -246,15 +246,17 @@ function Profile() {
             ) : (
               initials(user.name)
             )}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-medium text-center px-1">
-              {uploading ? 'Uploading...' : 'Change photo'}
+            <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-xs font-medium text-center px-2">
+              {uploading ? 'Uploading…' : 'Change photo'}
             </div>
           </div>
-          <div className="min-w-0 relative" style={{ transform: 'translateZ(24px)' }}>
-            <p className="text-[var(--color-text)] text-xl font-medium mb-1">{user.name}</p>
-            <p className="text-[var(--color-text-muted)] text-sm mb-1">{user.email}</p>
-            <p className="text-[var(--color-text-muted)] text-xs">Member since {formatDate(user.createdAt)}</p>
-            {uploadError && <p className="text-[#F87171] text-xs mt-1">{uploadError}</p>}
+          <div className="min-w-0 relative flex-1" style={{ transform: 'translateZ(24px)' }}>
+            <p className="text-[var(--color-text)] text-2xl font-semibold mb-1.5 tracking-tight">{user.name}</p>
+            <p className="text-[var(--color-text-muted)] text-sm mb-2">{user.email}</p>
+            <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] bg-white/5 border border-white/10 rounded-full px-3 py-1">
+              Member since {formatDate(user.createdAt)}
+            </span>
+            {uploadError && <p className="text-[#F87171] text-xs mt-2">{uploadError}</p>}
           </div>
         </TiltCard>
 
