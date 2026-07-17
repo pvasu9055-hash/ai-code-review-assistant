@@ -12,6 +12,20 @@ const generateEmbedding = async (text) => {
   }
 };
 
+const generateStandardEmbedding = async (text) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    const result = await model.embedContent({
+      content: { role: 'user', parts: [{ text }] },
+      outputDimensionality: 768,
+    });
+    return result.embedding.values;
+  } catch (err) {
+    console.error('Standard embedding generation failed:', err.message);
+    return null;
+  }
+};
+
 const cosineSimilarity = (a, b) => {
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
@@ -23,4 +37,4 @@ const cosineSimilarity = (a, b) => {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 };
 
-module.exports = { generateEmbedding, cosineSimilarity };
+module.exports = { generateEmbedding, generateStandardEmbedding, cosineSimilarity };

@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const otpAuthRoutes = require('./routes/otpAuthRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const githubRoutes = require('./routes/githubRoutes');
+const standardsRoutes = require('./routes/standardsRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth/otp', otpAuthRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/standards', standardsRoutes);
 
 app.get('/', (req, res) => {
   res.send('AI Code Review Assistant API is running');

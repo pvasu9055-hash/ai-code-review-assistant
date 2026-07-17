@@ -8,6 +8,11 @@ import Profile from './pages/Profile'
 import History from './pages/History'
 import ReviewDetail from './pages/ReviewDetail'
 import Analytics from './pages/Analytics'
+import UploadStandards from './pages/UploadStandards'
+import RAGReview from './pages/RAGReview'
+import DiffReview from './pages/DiffReview'
+import MultiAgentReview from './pages/MultiAgentReview'
+import GithubIntegration from './pages/GithubIntegration'
 import DashboardLayout from './layouts/DashboardLayout'
 
 function App() {
@@ -21,9 +26,14 @@ function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/new-review" element={<NewReview />} />
+          <Route path="/diff-review" element={<DiffReview />} />
+          <Route path="/multi-agent-review" element={<MultiAgentReview />} />
           <Route path="/history" element={<History />} />
           <Route path="/history/:reviewId" element={<ReviewDetail />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/standards" element={<UploadStandards />} />
+          <Route path="/rag-review" element={<RAGReview />} />
+          <Route path="/github-integration" element={<GithubIntegration />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Routes>

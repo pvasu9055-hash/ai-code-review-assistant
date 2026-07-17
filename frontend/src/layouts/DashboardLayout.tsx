@@ -7,12 +7,17 @@ function DashboardLayout() {
   const token = localStorage.getItem('token')
 
   const navItems = [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'New Review', path: '/new-review' },
-    { name: 'History', path: '/history' },
-    { name: 'Analytics', path: '/analytics' },
-    { name: 'Profile', path: '/profile' },
-  ]
+  { name: 'Dashboard', path: '/dashboard' },
+  { name: 'New Review', path: '/new-review' },
+  { name: 'Diff Review', path: '/diff-review' },
+  { name: 'Multi-Agent Review', path: '/multi-agent-review' },
+  { name: 'RAG Review', path: '/rag-review' },
+  { name: 'Standards', path: '/standards' },
+  { name: 'GitHub Integration', path: '/github-integration' },
+  { name: 'History', path: '/history' },
+  { name: 'Analytics', path: '/analytics' },
+  { name: 'Profile', path: '/profile' },
+]
 
   const handleLogout = () => {
     localStorage.removeItem('token')

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
 
 function History() {
+  const [searchParams] = useSearchParams()
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchParams.get('search') || '')
   const [minScore, setMinScore] = useState('')
   const [maxScore, setMaxScore] = useState('')
   const [reviewType, setReviewType] = useState('')
@@ -21,12 +22,13 @@ function History() {
   const [aiError, setAiError] = useState('')
   const [aiSearched, setAiSearched] = useState(false)
 
-  const fetchReviews = async () => {
+  const fetchReviews = async (overrideSearch?: string) => {
     setLoading(true)
     setError('')
     try {
       const params: any = { sortBy }
-      if (search) params.search = search
+      const searchValue = overrideSearch !== undefined ? overrideSearch : search
+      if (searchValue) params.search = searchValue
       if (minScore) params.minScore = minScore
       if (maxScore) params.maxScore = maxScore
       if (reviewType) params.reviewType = reviewType
@@ -41,9 +43,11 @@ function History() {
   }
 
   useEffect(() => {
-    fetchReviews()
+    const urlSearch = searchParams.get('search') || ''
+    setSearch(urlSearch)
+    fetchReviews(urlSearch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams])
 
   const handleFilter = (e: React.FormEvent) => {
     e.preventDefault()
@@ -172,6 +176,9 @@ function History() {
               <option value="">All types</option>
               <option value="paste">Pasted code</option>
               <option value="file">Uploaded file</option>
+              <option value="diff">Diff review</option>
+              <option value="multi-agent">Multi-agent</option>
+              <option value="rag">RAG review</option>
             </select>
             <select
               value={sortBy}

@@ -4,6 +4,10 @@ const {
   submitCode,
   submitFile,
   submitDiff,
+  submitMultiAgent,
+  submitRAGReview,
+  getProjectAnalytics,
+  getAIInsights,
   chatAboutReview,
   getReviewHistory,
   getReviewDetail,
@@ -18,7 +22,11 @@ const upload = require('../middleware/uploadMiddleware');
 router.post('/submit-code', protect, submitCode);
 router.post('/submit-file', protect, upload.single('file'), submitFile);
 router.post('/diff', protect, submitDiff);
+router.post('/multi-agent', protect, submitMultiAgent);
+router.post('/rag', protect, submitRAGReview);
 router.get('/analytics/trend', protect, getScoreTrend);
+router.get('/projects', protect, getProjectAnalytics);
+router.get('/insights', protect, getAIInsights);
 router.get('/stream-review', protect, streamReview);
 router.get('/search', protect, searchReviews);
 router.post('/:reviewId/chat', protect, chatAboutReview);

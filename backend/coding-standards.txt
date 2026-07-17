@@ -1,0 +1,7 @@
+Team Coding Standards
+
+1. Always use const or let. Never use var.
+2. Every function must have a JSDoc comment describing its purpose and parameters.
+3. Do not use console.log in production code - use a proper logger instead.
+4. All async functions must have try/catch error handling.
+5. Variable names must be camelCase, never snake_case.

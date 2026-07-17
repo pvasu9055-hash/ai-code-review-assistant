@@ -154,4 +154,112 @@ const runDiffAwareReviewBatch = async (fileSnippets, language = 'javascript') =>
   };
 };
 
-module.exports = { runAIReview, runDiffAwareReview, runDiffAwareReviewBatch };
+const buildRAGReviewPrompt = (code, language, guidance, standardChunks) => {
+  const standardsText = standardChunks
+    .map((c, i) => `[Standard ${i + 1}]\n${c.content}`)
+    .join('\n\n');
+
+  return `You are a senior code reviewer. Review the following ${language} code for bugs, security issues, performance problems, and code quality. In addition to general best practices, you MUST check compliance against the team's custom coding standards provided below — flag any violations of these specific rules explicitly. Respond ONLY in valid JSON, no markdown, no extra text, in this exact format:
+{
+  "overallScore": <number 0-100>,
+  "summary": "<2-3 sentence summary of the code quality>",
+  "findings": [
+    {
+      "severity": "error" | "warning" | "info",
+      "issue": "<short issue title>",
+      "explanation": "<what's wrong>",
+      "suggestedFix": "<how to fix it>",
+      "standardViolated": "<which standard this relates to, or null if it's a general finding>"
+    }
+  ]
+}
+${guidance}
+
+Team's Coding Standards (retrieved as most relevant to this code):
+${standardsText}
+
+Code to review:
+${code}`;
+};
+
+const runRAGReview = async (code, language = 'javascript', standardChunks = []) => {
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+
+  const normalizedLang = language.toLowerCase();
+  const guidance = LANGUAGE_GUIDANCE[normalizedLang] || '';
+
+  const prompt = buildRAGReviewPrompt(code, language, guidance, standardChunks);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const cleaned = text.replace(/```json|```/g, '').trim();
+
+      try {
+        return JSON.parse(cleaned);
+      } catch (parseErr) {
+        return {
+          overallScore: null,
+          summary: 'AI review completed but response could not be parsed.',
+          findings: [],
+        };
+      }
+    } catch (err) {
+      if (err.status === 503 && attempt < 3) {
+        await sleep(2000 * attempt);
+        continue;
+      }
+      break;
+    }
+  }
+
+  return {
+    overallScore: null,
+    summary: 'AI review temporarily unavailable (Gemini service overloaded).',
+    findings: [],
+  };
+};
+
+const buildInsightsPrompt = (statsText) => {
+  return `You are analyzing aggregate code review data across a developer's repositories. Based on the statistics below, write a concise engineering insights summary. Respond ONLY in valid JSON, no markdown, no extra text, in this exact format:
+{
+  "narrative": "<2-3 sentence plain-English summary of overall trends, written for an engineering manager>"
+}
+
+Data:
+${statsText}`;
+};
+
+const runInsightsAnalysis = async (statsText) => {
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+  const prompt = buildInsightsPrompt(statsText);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const cleaned = text.replace(/```json|```/g, '').trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch (parseErr) {
+        return null;
+      }
+    } catch (err) {
+      if (err.status === 503 && attempt < 3) {
+        await sleep(2000 * attempt);
+        continue;
+      }
+      break;
+    }
+  }
+  return null;
+};
+
+module.exports = {
+  runAIReview,
+  runDiffAwareReview,
+  runDiffAwareReviewBatch,
+  runRAGReview,
+  runInsightsAnalysis,
+};
