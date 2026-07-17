@@ -12,11 +12,13 @@ function Signup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   // otp signup state
   const [otpName, setOtpName] = useState('')
   const [otpEmail, setOtpEmail] = useState('')
   const [otpPassword, setOtpPassword] = useState('')
+  const [showOtpPassword, setShowOtpPassword] = useState(false)
   const [otpCode, setOtpCode] = useState('')
   const [otpSent, setOtpSent] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
@@ -161,14 +163,24 @@ function Signup() {
               required
               className="w-full px-5 py-3.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition"
             />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-5 py-3.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-5 py-3.5 pr-14 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition text-xs font-medium"
+                tabIndex={-1}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
             {error && <p className="text-[#F87171] text-sm text-center">{error}</p>}
             <button
               type="submit"
@@ -200,14 +212,24 @@ function Signup() {
               required
               className="w-full px-5 py-3.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition"
             />
-            <input
-              type="password"
-              placeholder="Password"
-              value={otpPassword}
-              onChange={(e) => setOtpPassword(e.target.value)}
-              required
-              className="w-full px-5 py-3.5 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition"
-            />
+            <div className="relative">
+              <input
+                type={showOtpPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={otpPassword}
+                onChange={(e) => setOtpPassword(e.target.value)}
+                required
+                className="w-full px-5 py-3.5 pr-14 rounded-full bg-white/5 text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none border border-white/10 focus:border-[var(--color-accent-blue)] transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOtpPassword((prev) => !prev)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition text-xs font-medium"
+                tabIndex={-1}
+              >
+                {showOtpPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
             {error && <p className="text-[#F87171] text-sm text-center">{error}</p>}
             <button
               type="submit"
