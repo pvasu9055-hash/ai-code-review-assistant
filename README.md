@@ -38,8 +38,6 @@
 
 </div>
 
-> 💡 Create a `docs/screenshots/` folder in your repo and drop in PNGs with these filenames — they'll render automatically above.
-
 ---
 
 ## ✨ Why This Isn't Just Another "AI Wrapper"
